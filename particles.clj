@@ -1,9 +1,10 @@
 (ns particles
   (:refer-clojure)
-  (:use   (clojure.contrib.generic
-            [math-functions :only [abs sqrt]]
-            ))
-  (:require clojure.stacktrace)
+  (:use [clojure.contrib.generic 
+         [math-functions :only [abs sqrt]]]
+        )
+  (:require clojure.stacktrace
+            [clojure.contrib.generic.arithmetic :as ga])
   )
 
 (def pos [[1 0 0] [0 -1 0] [-1 -1 0] [-1 0 0] [0 1 0]])
@@ -16,36 +17,52 @@
       (for [s (range n) e (range (inc s) n)] 
         [s e]))))
 
-(defn deltas [pairs]
-  (map #(for [coord (range 3)] 
-          (- ((pos (% 0)) coord) ((pos (% 1)) coord))) 
-       pairs))
 
-(defn squared_distances [deltas]
-  (map #(reduce + %)
-       (map (fn dsquare [coord] (map #(* % %) coord))
-            (vec deltas))))
+; vector difference v1 - v2
+(defn vdiff [v1 v2]
+  (map #(- %1 %2) v1 v2))
 
-(defn distances [squared_distances]
-  (map #(sqrt %) (vec squared_distances)))
+; squared absolute value of vector sum ( v1^2, v2^2, ... )
+(defn vabssquare [v]
+  (reduce + (map #(* % %) v)))
+
+; multiplies scalar s with vector v
+(defn vsmult [v s]
+  (map #(* s %) v))
 
 
-(defn cubic_distances [deltas]
-  (let [sqd (squared_distances deltas) d (distances sqd)]
-    (map #(* %1 %2) sqd d)))
+(defn distance_func [v1 v2 G]
+  (let [delta (vdiff v2 v1)
+        squared_distance (vabssquare delta)
+        distance (sqrt squared_distance)
+        cubic_distance (* squared_distance distance)]
+    (vsmult delta (/ G cubic_distance))
+    ))
 
-(defn forces [pos gravity_const]
-  (let [d (deltas (pairs pos)) cd (cubic_distances d)]
-    (let [rec_cd (map #(/ 1.0 %) cd)]
-      (map (fn [s v] (map #(* gravity_const s %) v)) rec_cd d)
-      )))
- 
+(defn gravity_pair_forces [pos G]
+  (map #(distance_func (pos (% 0)) (pos (% 1)) G)
+       (pairs pos)))
+
+(defn gravity_acc [pos G]
+  (let [pairs (pairs pos)
+        pair_forces (map #(distance_func (pos (% 0)) (pos (% 1)) G) pairs)
+        acc (vec (repeat (count pos) 0))]
+; geht so nicht aber
+    (do (map (fn [pair index]
+           (let [source (pair 0) dest (pair 1)] 
+             (assoc acc index "Hallo")
+             ))  
+         pairs (range (count pos))
+         )
+      acc)))
+
+;aber so
+;(vdiff
+;  (filter #(== (% 0) pos_index) pairs) ;-> das abbilden auf pair forces
+;  (filter #(== (% 1) pos_index) pairs)
+;  )
+
 
 ; demo
-(def d (deltas (pairs pos)))
-(squared_distances d)
-(distances (squared_distances d))
-(cubic_distances d)
-
-(forces pos 6.67429e-11) 
+(gravity_pair_forces pos 6.67429e-11) 
 
