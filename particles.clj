@@ -1,11 +1,14 @@
 (ns particles
-  (:refer-clojure)
+  (:refer-clojure :exclude [- *])
   (:use [clojure.contrib.generic 
-         [math-functions :only [abs sqrt]]]
+         [math-functions :only [sqrt]]
+         [arithmetic :only [- *]]
+         ]
         )
   (:require clojure.stacktrace
             [clojure.contrib.generic.arithmetic :as ga])
   )
+
 
 (def pos [[1 0 0] [0 -1 0] [-1 -1 0] [-1 0 0] [0 1 0]])
 ;(def vel (repeat (count pos) [0 0 0]))
@@ -18,9 +21,43 @@
         [s e]))))
 
 
+(defmethod  -
+  [clojure.lang.PersistentVector clojure.lang.PersistentVector]
+  [a b]
+  (map #(clojure.core/- %1 %2) a b))
+
+(defmethod  *
+  [java.lang.Number clojure.lang.PersistentVector]
+  [s v]
+  (map #(clojure.core/* s %) v))
+
+(defmethod  *
+  [clojure.lang.PersistentVector clojure.lang.PersistentVector]
+  [v1 v2]
+  (reduce + (map #(* %1 %2) v1 v2)))
+
+
+(defn sq_abs
+  [x]
+  (reduce + (map #(* % %) x)))
+
+
+(defmulti abs class)
+
+(defmethod abs
+  java.lang.Number
+  [x]
+  (Math/abs x))
+
+(defmethod abs
+  clojure.lang.PersistentVector
+  [x]
+  (sq_abs x))
+
+
 ; vector difference v1 - v2
 (defn vdiff [v1 v2]
-  (map #(- %1 %2) v1 v2))
+  (map #(clojure.core/- %1 %2) v1 v2))
 
 ; squared absolute value of vector sum ( v1^2, v2^2, ... )
 (defn vabssquare [v]
