@@ -1,3 +1,9 @@
+; particles
+; particle dynamics by Runge-Kutta integration
+;
+; by Otto Linnemann
+; (C) 2011, GNU General Public Licence
+
 (ns particles
   (:refer-clojure :exclude [- + *])
   (:use [clojure.contrib.generic 
@@ -9,51 +15,36 @@
             [clojure.contrib.generic.arithmetic :as ga])
   )
 
-
-(def pos [[1 0 0] [0 -1 0] [-1 -1 0] [-2 0 0] [0 1 4]])
-;(def vel (repeat (count pos) [0 0 0]))
-;(def acc (repeat (count pos) [0 0 0]))
-
+;
+; --- vector algebra ---
+;
 
 
-; vector algebra
-
+; (v1 - v2)
 (defmethod  -
   [clojure.lang.PersistentVector clojure.lang.PersistentVector]
   [a b]
-  (map #(clojure.core/- %1 %2) a b))
+  (vec (map #(clojure.core/- %1 %2) a b)))
 
-(defmethod  -
-  [clojure.lang.LazySeq clojure.lang.LazySeq]
-  [a b]
-  (map #(clojure.core/- %1 %2) a b))
-
+; (v1 + v2)
 (defmethod  +
   [clojure.lang.PersistentVector clojure.lang.PersistentVector]
   [a b]
-  (map #(clojure.core/+ %1 %2) a b))
+  (vec (map #(clojure.core/+ %1 %2) a b)))
 
-(defmethod  +
-  [clojure.lang.LazySeq clojure.lang.LazySeq]
-  [a b]
-  (map #(clojure.core/+ %1 %2) a b))
-
+; (scalar * v)
 (defmethod  *
   [java.lang.Number clojure.lang.PersistentVector]
   [s v]
-  (map #(clojure.core/* s %) v))
+  (vec (map #(clojure.core/* s %) v)))
 
-(defmethod  *
-  [java.lang.Number clojure.lang.LazySeq]
-  [s v]
-  (map #(clojure.core/* s %) v))
-
+; scalarproduct: (v1 * v2)
 (defmethod  *
   [clojure.lang.PersistentVector clojure.lang.PersistentVector]
   [v1 v2]
   (reduce + (map #(* %1 %2) v1 v2)))
 
-
+; squared absolute value
 (defn sq_abs
   [x]
   (reduce + (map #(* % %) x)))
@@ -66,20 +57,29 @@
   [x]
   (Math/abs x))
 
+; absolute value of vector
 (defmethod abs
   clojure.lang.PersistentVector
   [x]
   (sq_abs x))
 
 
+;
+; --- particle interaction ---
+;
 
+
+; computes all edges between indexes of position vector pos
+; e.g. ([0 1] [0 2] [0 3] [0 4] [1 2] [1 3] [1 4] [2 3] [2 4] [3 4])
 (defn pairs [pos] 
   (let [n (count pos)]
     (let [idx []]
       (for [s (range n) e (range (inc s) n)] 
         [s e]))))
 
-(defn distance_func [v1 v2 G]
+
+; computes gravity function between two material points (mass not included)
+(defn gravity_pair_force [v1 v2 G]
   (let [delta (- v2 v1)
         squared_distance (sq_abs delta)
         distance (sqrt squared_distance)
@@ -87,34 +87,48 @@
     (* (/ G cubic_distance) delta )
     ))
 
+
+; computes gravity function between all edges (material point pairs)
 (defn gravity_pair_forces [pos G]
-  (map #(distance_func (pos (% 0)) (pos (% 1)) G)
+  (map #(gravity_pair_force (pos (% 0)) (pos (% 1)) G)
        (pairs pos)))
+
 
 ; sums up a vector of vectors
 (defn vsum [vi]
-  (loop [res [0 0 0] v vi]
+  (loop [res [0 0 0] v (vec vi)]
     (if (empty? v)
       res
       (recur (+ (vec res) (vec (first v))) (rest v)))))
 
 
-(defn gravity_acc [pos G]
+; computes accellaration for all given positions and masses
+(defn gravity_acc [pos masses G]
   (let [pairs (pairs pos)
-        pair_forces (map #(distance_func (pos (% 0)) (pos (% 1)) G) pairs)
+        pair_forces (map #(gravity_pair_force (pos (% 0)) (pos (% 1)) G) pairs)
         inter_force_pair (partition 2 (interleave pair_forces pairs))
         acc (vec (repeat (count pos) 0))
         sum [0 0 0]]
     (map (fn [element]
            (let
-             [source (filter #(== ((second %) 0) 2) inter_force_pair)
-              dest (filter #(== ((second %) 1) 2) inter_force_pair)]
-             (do (println element)
+             [source (filter #(== ((second %) 0) element) inter_force_pair)
+              dest (filter #(== ((second %) 1) element) inter_force_pair)]
              (- 
-               (vsum (map #(+ sum (vec (first %))) source))
-               (vsum (map #(+ sum (vec (first %))) dest)))))) 
-           (range (count pos)))))
+               (vsum (map #(* (masses ((second %) 1)) (+ sum (first %))) source))
+               (vsum (map #(* (masses ((second %) 0)) (+ sum (first %))) dest))))) 
+         (range (count pos)))))
     
-; demo
-;(gravity_pair_forces pos 6.67429e-11) 
-(gravity_acc pos 10.0) 
+
+
+;
+; --- demo ---
+;
+(def G 6.67429e-11)
+(def pos [[1 0 0] [0 -1 0] [-1 -1 0] [-2 0 0] [0 1 4]])
+(def masses (vec (repeat (count pos) 1.0)))
+
+;(def vel (repeat (count pos) [0 0 0]))
+;(def acc (repeat (count pos) [0 0 0]))
+
+;(gravity_pair_forces pos G) 
+(gravity_acc pos masses G) 
