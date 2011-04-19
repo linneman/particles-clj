@@ -107,15 +107,14 @@
   (let [pairs (pairs pos)
         pair_forces (map #(gravity_pair_force (pos (% 0)) (pos (% 1)) G) pairs)
         inter_force_pair (partition 2 (interleave pair_forces pairs))
-        acc (vec (repeat (count pos) 0))
-        sum [0 0 0]]
+        acc [0 0 0]]
     (map (fn [element]
-           (let
-             [source (filter #(== ((second %) 0) element) inter_force_pair)
-              dest (filter #(== ((second %) 1) element) inter_force_pair)]
+           (let [
+                 sources       (filter #(== ((second %) 0) element) inter_force_pair)
+                 destinations  (filter #(== ((second %) 1) element) inter_force_pair)]
              (- 
-               (vsum (map #(* (masses ((second %) 1)) (+ sum (first %))) source))
-               (vsum (map #(* (masses ((second %) 0)) (+ sum (first %))) dest))))) 
+               (vsum (map #(+ acc (* (masses ((second %) 1)) (first %))) sources))
+               (vsum (map #(+ acc (* (masses ((second %) 0)) (first %))) destinations))))) 
          (range (count pos)))))
     
 
