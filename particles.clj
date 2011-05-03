@@ -124,6 +124,8 @@
 
 
 
+
+
 ; --- Differential Equation Vectors for Solver  ---
 ;
 ; y: vector of the dynamic particle parameter input
@@ -146,18 +148,32 @@
 ; f[5] = dy[5]/dt = e.g. gravity_acc[2]
 ;
 
+(defstruct particles :state :mass)
 
 ; generate vectors of y's
 (defn gen_y_vectors [pos vel] 
   (partition 6 (flatten (interleave pos vel))))
 
-; calculate vectors of f's
-(defn dynamics_func_vectors [#^double t y_vec & {:keys [masses]}]
-  (let [positions (map #(vec (take 3 %)) y_vec)
-        vels (map #(drop 3 %) y_vec)
-        accs (gravity_acc positions masses)]
-   (partition 6 (flatten (interleave vels accs)))
-  ))
+
+(defn gen_particle_states [pos vel masses]
+  (let [y_vectors  (gen_y_vectors pos vel)]
+    (map #(struct particles (nth % 0) (nth % 1)) 
+         (partition 2 (interleave y_vectors masses)))))
+
+
+; neue formulierung!
+; ausblenden eines elementes aus vector a
+;(keep-indexed (fn [idx item] (if (not (= idx 2)) item)) a)
+
+
+(defn deqn [p_actio p_reactio] 
+  (vsum
+    (map #(* (:mass %)
+             (vec (gravity_pair_force
+                    (vec (take 3 (:state p_actio)))   ; actio position
+                    (vec (take 3 (:state %)))         ; reactio position
+                    )))
+         p_reactio)))
 
 
 ; --- Runge Kutta ---
@@ -170,12 +186,26 @@
 (def pos [[1 0 0] [0 -1 0] [-1 -1 0] [-2 0 0] [0 1 4]])
 (def vel (repeat (count pos) [0 0 0]))
 (def masses (vec (repeat (count pos) 1.0)))
+(def states (gen_particle_states pos vel masses))
 
-;(gravity_pair_forces pos) 
-;(gravity_acc pos masses) 
+; test
+(def actio (nth states 0))
+(def reactio 
+  (keep-indexed (fn [idx item] (if (not (= idx 0)) item)) states)
+  )
 
-(def initial_y_vectors (gen_y_vectors pos vel))
-(def accs (dynamics_func_vectors 1.0 initial_y_vectors :masses masses))
+(defn indexed [col] (map vector (iterate inc 0) col))
 
-initial_y_vectors
-accs
+(defn update [states]
+  (map (fn [k]
+         (let [actio (nth states k)
+               reactio (keep-indexed (fn [idx item] (if (not (= idx k)) item)) states)]
+           (deqn actio reactio) ; replace this by runke kutta (rkf45)
+           ))
+       (range (count states))))
+
+
+;(def initial_y_vectors (gen_y_vectors pos vel))
+;initial_y_vectors
+
+(update states)
