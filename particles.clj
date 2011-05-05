@@ -122,10 +122,6 @@
          (range (count pos)))))
     
 
-
-
-
-
 ; --- Differential Equation Vectors for Solver  ---
 ;
 ; y: vector of the dynamic particle parameter input
@@ -136,7 +132,22 @@
 ; y[3] = vel.x
 ; y[4] = vel.y
 ; y[5] = vel.z
-;
+
+; particle data structure which provides state vector and
+; constant characteristics e.g. its mass
+(defstruct particles :state :mass)
+
+; generate vectors of y state vector, see deqn
+(defn gen_y_vectors [pos vel] 
+  (partition 6 (flatten (interleave pos vel))))
+
+; generates vector of particle states
+(defn gen_particle_states [pos vel masses]
+  (let [y_vectors  (gen_y_vectors pos vel)]
+    (map #(struct particles (nth % 0) (nth % 1)) 
+         (partition 2 (interleave y_vectors masses)))))
+
+
 ; returns f: vector of the dynamic particle paramter output
 ; new velocity:
 ; f[0] = dy[0]/dt = e.g. y[3]
@@ -147,37 +158,22 @@
 ; f[4] = dy[4]/dt = e.g. gravity_acc[1]
 ; f[5] = dy[5]/dt = e.g. gravity_acc[2]
 ;
-
-(defstruct particles :state :mass)
-
-; generate vectors of y's
-(defn gen_y_vectors [pos vel] 
-  (partition 6 (flatten (interleave pos vel))))
-
-
-(defn gen_particle_states [pos vel masses]
-  (let [y_vectors  (gen_y_vectors pos vel)]
-    (map #(struct particles (nth % 0) (nth % 1)) 
-         (partition 2 (interleave y_vectors masses)))))
-
-
-; neue formulierung!
-; ausblenden eines elementes aus vector a
-;(keep-indexed (fn [idx item] (if (not (= idx 2)) item)) a)
-
-
-(defn deqn [p_actio p_reactio] 
-  (vsum
-    (map #(* (:mass %)
-             (vec (gravity_pair_force
-                    (vec (take 3 (:state p_actio)))   ; actio position
-                    (vec (take 3 (:state %)))         ; reactio position
-                    )))
-         p_reactio)))
+(defn deqn [y p_reactio] 
+  (let [acc (vsum
+              (map #(* (:mass %)
+                       (vec (gravity_pair_force
+                              (vec (take 3 y))          ; actio position
+                              (vec (take 3 (:state %))) ; reactio position
+                              )))
+                   p_reactio))]
+    (vec (concat (vec (drop 3 y)) acc))
+    ))
 
 
 ; --- Runge Kutta ---
 ;
+
+(defn rkf45 )
 
 
 ; --- demo ---
@@ -200,7 +196,7 @@
   (map (fn [k]
          (let [actio (nth states k)
                reactio (keep-indexed (fn [idx item] (if (not (= idx k)) item)) states)]
-           (deqn actio reactio) ; replace this by runke kutta (rkf45)
+           (deqn (:state actio) reactio) ; replace this by runke kutta (rkf45)
            ))
        (range (count states))))
 
