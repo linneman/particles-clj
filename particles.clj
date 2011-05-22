@@ -7,7 +7,7 @@
 (ns particles
   (:refer-clojure :exclude [- + *])
   (:use [clojure.contrib.generic 
-         [math-functions :only [sqrt]]
+         [math-functions :only [sqrt pow]]
          [arithmetic :only [- + *]]
          ]
         )
@@ -31,6 +31,12 @@
   [clojure.lang.PersistentVector clojure.lang.PersistentVector]
   [a b]
   (vec (map #(clojure.core/+ %1 %2) a b)))
+
+; (scalar + v)
+(defmethod  +
+  [java.lang.Number clojure.lang.PersistentVector]
+  [s v]
+  (vec (map #(clojure.core/+ s %) v)))
 
 ; (scalar * v)
 (defmethod  *
@@ -158,7 +164,7 @@
 ; f[4] = dy[4]/dt = e.g. gravity_acc[1]
 ; f[5] = dy[5]/dt = e.g. gravity_acc[2]
 ;
-(defn deqn [y p_reactio] 
+(defn gravity_deqn [t y p_reactio] 
   (let [acc (vsum
               (map #(* (:mass %)
                        (vec (gravity_pair_force
@@ -172,8 +178,31 @@
 
 ; --- Runge Kutta ---
 ;
-
-(defn rkf45 )
+(defn rkf45 [f t y h eps params]
+  (let [y (vec y)
+        pf (fn [t y] (f t y params))
+        k1 (* h (pf t y))
+        k2 (* h (pf (+ t  (* 0.25 h)) (+ y (* 0.25 k1))))
+        k3 (* h (pf (+ t  (* 0.375 h)) (+ y (* 0.09375 k1) (* 0.28125 k2))))
+        k4 (* h (pf (+ t  (* 0.9230769230769231 h))
+                    (+ y (* 0.8793809740555303 k1)
+                       (* -3.277196176604461 k2)  (* 3.3208921256258535 k3))))
+        k5 (* h (pf (+ t h)
+                    (+ y (* 2.0324074074074074 k1) (* -8 k2)
+                       (* 7.173489278752436 k3) (* -0.20589668615984405 k4))))
+        k6 (* h (pf (+ t (* 0.5 h))
+                    (+ y (* -0.2962962962962963 k1) (* 2 k2)
+                       (* -1.3816764132553607 k3) (* 0.4529727095516569 k4)
+                       (* 0.275 k5))))
+        yj (+ (* 0.11574074074074074 k1) (* 0.5489278752436647 k3)
+              (* 0.5353313840155945 k4) (* -0.25 k5))
+        zj (+ (* 0.11851851851851852 k1) (* 0.5189863547758284 k3)
+              (* 0.5061314903420167 k4) (* -0.18 k5) (* 0.03636363636363636 k6))
+        s (* 0.840896 (pow (/ (* eps h) (abs (- zj yj))) 0.25))
+        ]
+    (vector zj s) 
+    )
+  )
 
 
 ; --- demo ---
@@ -190,13 +219,23 @@
   (keep-indexed (fn [idx item] (if (not (= idx 0)) item)) states)
   )
 
+
+
+(defn mytest []
+  ;(gravity_deqn  0.0 (:state actio) reactio)
+  (rkf45 gravity_deqn 0.0 (:state actio) 300 1e-5 reactio)
+  )
+
+
+
+
 (defn indexed [col] (map vector (iterate inc 0) col))
 
 (defn update [states]
   (map (fn [k]
          (let [actio (nth states k)
                reactio (keep-indexed (fn [idx item] (if (not (= idx k)) item)) states)]
-           (deqn (:state actio) reactio) ; replace this by runke kutta (rkf45)
+           (gravity_deqn  0.0 (:state actio) reactio) ; replace this by runke kutta (rkf45)
            ))
        (range (count states))))
 
