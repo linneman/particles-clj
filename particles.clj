@@ -200,7 +200,7 @@
               (* 0.5061314903420167 k4) (* -0.18 k5) (* 0.03636363636363636 k6))
         s (* 0.840896 (pow (/ (* eps h) (abs (- zj yj))) 0.25))
         ]
-    (vector zj s) 
+    {:yn zj :hn s} 
     )
   )
 
@@ -208,15 +208,15 @@
 ; --- demo ---
 ;
 ;initial conditions
-(def pos [[1 0 0] [0 -1 0] [-1 -1 0] [-2 0 0] [0 1 4]])
+(def pos [[1 0 -2] [0 -1 -1] [-1 -1 1] [-2 0 0] [0 1 4]])
 (def vel (repeat (count pos) [0 0 0]))
 (def masses (vec (repeat (count pos) 1.0)))
-(def states (gen_particle_states pos vel masses))
+(def istates (gen_particle_states pos vel masses))
 
 ; test
-(def actio (nth states 0))
+(def actio (nth istates 0))
 (def reactio 
-  (keep-indexed (fn [idx item] (if (not (= idx 0)) item)) states)
+  (keep-indexed (fn [idx item] (if (not (= idx 0)) item)) istates)
   )
 
 ; (defn rkf45 [f t y h eps params]
@@ -231,11 +231,12 @@
 
 (defn indexed [col] (map vector (iterate inc 0) col))
 
-(defn update [states]
+(defn update [states t h eps]
   (map (fn [k]
          (let [actio (nth states k)
-               reactio (keep-indexed (fn [idx item] (if (not (= idx k)) item)) states)]
-           (gravity_deqn  0.0 (:state actio) reactio) ; replace this by runke kutta (rkf45)
+               reactio (keep-indexed (fn [idx item] (if (not (= idx k)) item)) states)
+              ]
+           (rkf45 gravity_deqn t (:state actio) h eps reactio)
            ))
        (range (count states))))
 
@@ -243,4 +244,32 @@
 ;(def initial_y_vectors (gen_y_vectors pos vel))
 ;initial_y_vectors
 
-(update states)
+; examples for continuation
+(def t 0)
+(def h 300)
+(def eps 1e-5)
+(def yn_hn (update istates t h eps))
+(def nstates (map (fn [a b] {:mass (:mass a) :state (:yn b)}) istates yn_hn))
+
+
+(defn log [states]
+ (do 
+  (dorun (map #(println (take 3 (:state %))) states))
+  (println "----------")))
+
+
+(defn solve [tmax log_state_fn]
+  (loop [t 0  states istates  h 300]
+    (let [yn_hn (update nstates t h eps)
+          updated_states (map (fn [a b] {:mass (:mass a) :state (:yn b)}) states yn_hn)
+          h_rkf45 (apply max (map #(:hn %) yn_hn))
+          [tn statesn] (if (> h h_rkf45)
+                         (list t states)
+                         (list (+ t h) (do (log_state_fn states) updated_states)))]
+      (if (> t tmax)
+        t
+        (recur tn statesn (* 0.8 h_rkf45))
+        ))))
+
+(solve 10000 log)
+
