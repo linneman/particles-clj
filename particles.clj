@@ -232,7 +232,7 @@
 (defn indexed [col] (map vector (iterate inc 0) col))
 
 (defn update [states t h eps]
-  (map (fn [k]
+  (pmap (fn [k]
          (let [actio (nth states k)
                reactio (keep-indexed (fn [idx item] (if (not (= idx k)) item)) states)
               ]
@@ -250,12 +250,36 @@
 (def eps 1e-5)
 (def yn_hn (update istates t h eps))
 (def nstates (map (fn [a b] {:mass (:mass a) :state (:yn b)}) istates yn_hn))
-
+(def trajectories (map #(vector (vec (take 3 (:state %)))) istates)) ; initialize with first position
+(def lim_dist 1e-7)
 
 (defn log [states]
  (do 
   (dorun (map #(println (take 3 (:state %))) states))
   (println "----------")))
+
+
+(defn log2 [states] 
+  (def trajectories
+    (map (fn [a b] (conj b (take 3 (:state a)))) states trajectories)))
+
+(defn log3 [states] 
+  (def trajectories
+    (map (fn [a b]
+           (let [curr_pos (vec (take 3 (:state a)))
+                 last_pos (vec (last b))
+                 max_dist (apply max (map abs (- last_pos curr_pos)))]
+             (if (> max_dist lim_dist) (conj b curr_pos) b)))
+         states trajectories)))
+
+(defn logt [states] 
+  (def trajectories
+    (map (fn [a b]
+           (let [curr_pos (vec (take 3 (:state a)))
+                 last_pos (vec (last b))
+                 max_dist (apply max (map abs (- last_pos curr_pos)))]
+                 b))
+         states trajectories)))
 
 
 (defn solve [tmax log_state_fn]
@@ -271,5 +295,5 @@
         (recur tn statesn (* 0.8 h_rkf45))
         ))))
 
-(solve 10000 log)
-
+;(solve 10000 log)
+(solve 10000 log3)
