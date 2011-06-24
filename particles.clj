@@ -253,7 +253,7 @@
 (def trajectories (map #(vector (vec (take 3 (:state %)))) istates)) ; initialize with first position
 (def lim_dist 1e-7)
 
-(defn log [states]
+(defn log1 [states]
  (do 
   (dorun (map #(println (take 3 (:state %))) states))
   (println "----------")))
@@ -272,14 +272,33 @@
              (if (> max_dist lim_dist) (conj b curr_pos) b)))
          states trajectories)))
 
-(defn logt [states] 
-  (def trajectories
-    (map (fn [a b]
-           (let [curr_pos (vec (take 3 (:state a)))
-                 last_pos (vec (last b))
-                 max_dist (apply max (map abs (- last_pos curr_pos)))]
-                 b))
-         states trajectories)))
+(defprotocol Log
+  (log [this states] "append current state information to log")) 
+
+(defrecord Logger [trajectories_ref]
+  Log
+  (log [this states] 
+    (dosync (ref-set (:trajectories_ref this)
+      (map (fn [a b]
+             (let [curr_pos (vec (take 3 (:state a)))
+                   last_pos (vec (last b))
+                   max_dist (apply max (map abs (- last_pos curr_pos)))]
+               (if (> max_dist lim_dist) (conj b curr_pos) b)))
+           states (deref (:trajectories_ref this))))))
+  )
+
+;(def LoggerObject (Logger. (ref trajectories)))
+
+(defn createLogger [istates]
+  (let [trajectories (map #(vector (vec (take 3 (:state %)))) istates)]
+    (Logger. (ref trajectories))))
+
+;example
+;(def x (log LoggerObject istates))
+
+; needs to be implemented with macros
+;(defn createLoggerObj [trajectories]
+;  (.Logger trajref))
 
 
 (defn solve [tmax log_state_fn]
@@ -296,4 +315,9 @@
         ))))
 
 ;(solve 10000 log)
-(solve 10000 log3)
+;(solve 10000 log3)
+;(def myLogger (create_logger istates 1e-7))
+
+(def LoggerObject (createLogger istates))
+(solve 10000 (fn [states] (log LoggerObject states)))
+
