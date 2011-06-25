@@ -1,5 +1,5 @@
 ; particles
-; particle dynamics by Runge-Kutta integration
+; particle dynamics by Runge-Kutta interpolation
 ;
 ; by Otto Linnemann
 ; (C) 2011, GNU General Public Licence
@@ -18,7 +18,6 @@
 ;
 ; --- vector algebra ---
 ;
-
 
 ; (v1 - v2)
 (defmethod  -
@@ -50,11 +49,10 @@
   [v1 v2]
   (reduce + (map #(* %1 %2) v1 v2)))
 
-; squared absolute value
 (defn sq_abs
+  "squared absolute value of a vector"
   [x]
   (reduce + (map #(* % %) x)))
-
 
 (defmulti abs class)
 
@@ -69,25 +67,57 @@
   [x]
   (sq_abs x))
 
+(defn vsum
+  "sums up a vector of vectors"
+  [vi]
+  (loop [res [0 0 0] v (vec vi)]
+    (if (empty? v)
+      res
+      (recur (+ (vec res) (vec (first v))) (rest v)))))
+
 
 ;
-; --- particle interaction ---
+; --- Particle Interaction and Differential Equation Vectors for Solver ---
 ;
 
 ; gravity constant
 (def G 6.67429e-11)
 
-; computes all edges between indexes of position vector pos
-; e.g. ([0 1] [0 2] [0 3] [0 4] [1 2] [1 3] [1 4] [2 3] [2 4] [3 4])
-(defn pairs [pos] 
-  (let [n (count pos)]
-    (let [idx []]
-      (for [s (range n) e (range (inc s) n)] 
-        [s e]))))
+; particle data structure which provides state vector and
+; constant characteristics e.g. its mass
+(defstruct particles :state :mass)
 
 
-; computes gravity function between two material points (mass not included)
-(defn gravity_pair_force [v1 v2]
+(defn gen_y_vectors
+  "generate vectors of y state vector where y is the
+   vector of the dynamic particle parameter input.
+   refer also to function gravity_deqn.
+   [0] = pos.x
+   y[1] = pos.y
+   y[2] = pos.z
+
+   y[3] = vel.x
+   y[4] = vel.y
+   y[5] = vel.z"
+  [pos vel] 
+  (partition 6 (flatten (interleave pos vel))))
+
+
+(defn gen_particle_states
+  "generates a vector whose elements are pairs
+  of particle state vectors y and corresponding
+  masses. The input arguments are vectors of the
+  same length for positions, velocities and
+  masses."
+  [pos vel masses]
+  (let [y_vectors  (gen_y_vectors pos vel)]
+    (map #(struct particles (nth % 0) (nth % 1)) 
+         (partition 2 (interleave y_vectors masses)))))
+
+
+(defn gravity_pair_force
+  "computes gravity function between two material points (mass not included)"
+  [v1 v2]
   (let [delta (- v2 v1)
         squared_distance (sq_abs delta)
         distance (sqrt squared_distance)
@@ -95,76 +125,21 @@
     (* (/ G cubic_distance) delta )
     ))
 
+(defn gravity_deqn 
+  "Computes the differential dy/dt from a particle state y and
+  the vector of all reacting particle states (positions). The
+  functions returns the differential vector f (dynamic particle
+  paramter output:
 
-; computes gravity function between all edges (material point pairs)
-(defn gravity_pair_forces [pos]
-  (map #(gravity_pair_force (pos (% 0)) (pos (% 1)))
-       (pairs pos)))
-
-
-; sums up a vector of vectors
-(defn vsum [vi]
-  (loop [res [0 0 0] v (vec vi)]
-    (if (empty? v)
-      res
-      (recur (+ (vec res) (vec (first v))) (rest v)))))
-
-
-; computes accellaration for all given positions and masses
-(defn gravity_acc [pos masses]
-  (let [pos (vec pos)
-        masses (vec masses)
-        pairs (pairs pos)
-        pair_forces (map #(gravity_pair_force (pos (% 0)) (pos (% 1))) pairs)
-        inter_force_pair (partition 2 (interleave pair_forces pairs))
-        acc [0 0 0]]
-    (map (fn [element]
-           (let [
-                 sources       (filter #(== ((second %) 0) element) inter_force_pair)
-                 destinations  (filter #(== ((second %) 1) element) inter_force_pair)]
-             (- 
-               (vsum (map #(+ acc (* (masses ((second %) 1)) (first %))) sources))
-               (vsum (map #(+ acc (* (masses ((second %) 0)) (first %))) destinations))))) 
-         (range (count pos)))))
-    
-
-; --- Differential Equation Vectors for Solver  ---
-;
-; y: vector of the dynamic particle parameter input
-; y[0] = pos.x
-; y[1] = pos.y
-; y[2] = pos.z
-;
-; y[3] = vel.x
-; y[4] = vel.y
-; y[5] = vel.z
-
-; particle data structure which provides state vector and
-; constant characteristics e.g. its mass
-(defstruct particles :state :mass)
-
-; generate vectors of y state vector, see deqn
-(defn gen_y_vectors [pos vel] 
-  (partition 6 (flatten (interleave pos vel))))
-
-; generates vector of particle states
-(defn gen_particle_states [pos vel masses]
-  (let [y_vectors  (gen_y_vectors pos vel)]
-    (map #(struct particles (nth % 0) (nth % 1)) 
-         (partition 2 (interleave y_vectors masses)))))
-
-
-; returns f: vector of the dynamic particle paramter output
-; new velocity:
-; f[0] = dy[0]/dt = e.g. y[3]
-; f[1] = dy[1]/dt = e.g. y[4]
-; f[2] = dy[2]/dt = e.g. y[5]
-; new acceleration
-; f[3] = dy[3]/dt = e.g. gravity_acc[0]
-; f[4] = dy[4]/dt = e.g. gravity_acc[1]
-; f[5] = dy[5]/dt = e.g. gravity_acc[2]
-;
-(defn gravity_deqn [t y p_reactio] 
+  new velocity:
+  f[0] = dy[0]/dt = e.g. y[3]
+  f[1] = dy[1]/dt = e.g. y[4]
+  f[2] = dy[2]/dt = e.g. y[5]
+  new acceleration
+  f[3] = dy[3]/dt = e.g. gravity_acc[0]
+  f[4] = dy[4]/dt = e.g. gravity_acc[1]
+  f[5] = dy[5]/dt = e.g. gravity_acc[2]"
+  [t y p_reactio] 
   (let [acc (vsum
               (map #(* (:mass %)
                        (vec (gravity_pair_force
@@ -175,10 +150,20 @@
     (vec (concat (vec (drop 3 y)) acc))
     ))
 
-
+;
 ; --- Runge Kutta ---
 ;
-(defn rkf45 [f t y h eps params]
+(defn rkf45
+  "Runge Kutta forth/fifth order for the interpolation of 
+  y(t+h) where h is the step size, t is the current time,
+  y is the current state vector, f is the differential
+  function, params are the arguments to that function and
+  eps is the accepted error for the determination of the
+  ideal step size hn. The ideal step size hn is calculated
+  by taking into accout the given two interpolation orders.
+  Both yn ( y(t+h) ) and hn are returned as structure
+  elements."
+  [f t y h eps params]
   (let [y (vec y)
         pf (fn [t y] (f t y params))
         k1 (* h (pf t y))
@@ -205,33 +190,43 @@
   )
 
 
-; --- demo ---
 ;
-;initial conditions
-(def pos [[1 0 -2] [0 -1 -1] [-1 -1 1] [-2 0 0] [0 1 4]])
-(def vel (repeat (count pos) [0 0 0]))
-(def masses (vec (repeat (count pos) 1.0)))
-(def istates (gen_particle_states pos vel masses))
+; --- Trajectory logging ---
+;
+(defprotocol Log
+  "Protocol for Logging particle trajectories"
+  (log [this states] "append current state information to log")) 
 
-; test
-(def actio (nth istates 0))
-(def reactio 
-  (keep-indexed (fn [idx item] (if (not (= idx 0)) item)) istates)
+(defrecord Logger [trajectories_ref lim_dist]
+  Log
+  (log [this states] 
+    (dosync (ref-set (:trajectories_ref this)
+      (map (fn [a b]
+             (let [curr_pos (vec (take 3 (:state a)))
+                   last_pos (vec (last b))
+                   max_dist (apply max (map abs (- last_pos curr_pos)))]
+               (if (> max_dist (:lim_dist this)) (conj b curr_pos) b)))
+           states (deref (:trajectories_ref this))))))
   )
 
-; (defn rkf45 [f t y h eps params]
+(defn createLogger
+  "creates a logger instance used for the solver. The function
+  takes to arguments. istates correspond to the initial state
+  vector and lim_dist provides the limit which must be crossed
+  in one dimension for a new particles position for being logged." 
+  [istates lim_dist]
+  (let [trajectories (map #(vector (vec (take 3 (:state %)))) istates)]
+    (Logger. (ref trajectories) lim_dist)))
 
-(defn mytest []
-  ;(gravity_deqn  0.0 (:state actio) reactio)
-  (rkf45 gravity_deqn 0.0 (:state actio) 300 1e-5 reactio)
-  )
 
 
-
-
-(defn indexed [col] (map vector (iterate inc 0) col))
-
-(defn update [states t h eps]
+;
+; --- Differential Equation Solver ---
+;
+(defn update
+  "applies runge kutta function (rkf45) to all states in
+  given state vector with step size h and error limit eps."
+  [states t h eps]
   (pmap (fn [k]
          (let [actio (nth states k)
                reactio (keep-indexed (fn [idx item] (if (not (= idx k)) item)) states)
@@ -240,72 +235,19 @@
            ))
        (range (count states))))
 
-
-;(def initial_y_vectors (gen_y_vectors pos vel))
-;initial_y_vectors
-
-; examples for continuation
-(def t 0)
-(def h 300)
-(def eps 1e-5)
-(def yn_hn (update istates t h eps))
-(def nstates (map (fn [a b] {:mass (:mass a) :state (:yn b)}) istates yn_hn))
-(def trajectories (map #(vector (vec (take 3 (:state %)))) istates)) ; initialize with first position
-(def lim_dist 1e-7)
-
-(defn log1 [states]
- (do 
-  (dorun (map #(println (take 3 (:state %))) states))
-  (println "----------")))
-
-
-(defn log2 [states] 
-  (def trajectories
-    (map (fn [a b] (conj b (take 3 (:state a)))) states trajectories)))
-
-(defn log3 [states] 
-  (def trajectories
-    (map (fn [a b]
-           (let [curr_pos (vec (take 3 (:state a)))
-                 last_pos (vec (last b))
-                 max_dist (apply max (map abs (- last_pos curr_pos)))]
-             (if (> max_dist lim_dist) (conj b curr_pos) b)))
-         states trajectories)))
-
-(defprotocol Log
-  (log [this states] "append current state information to log")) 
-
-(defrecord Logger [trajectories_ref]
-  Log
-  (log [this states] 
-    (dosync (ref-set (:trajectories_ref this)
-      (map (fn [a b]
-             (let [curr_pos (vec (take 3 (:state a)))
-                   last_pos (vec (last b))
-                   max_dist (apply max (map abs (- last_pos curr_pos)))]
-               (if (> max_dist lim_dist) (conj b curr_pos) b)))
-           states (deref (:trajectories_ref this))))))
-  )
-
-;(def LoggerObject (Logger. (ref trajectories)))
-
-(defn createLogger [istates]
-  (let [trajectories (map #(vector (vec (take 3 (:state %)))) istates)]
-    (Logger. (ref trajectories))))
-
-;example
-;(def x (log LoggerObject istates))
-
-; needs to be implemented with macros
-;(defn createLoggerObj [trajectories]
-;  (.Logger trajref))
-
-
-(defn solve [tmax log_state_fn]
-  (loop [t 0  states istates  h 300]
-    (let [yn_hn (update nstates t h eps)
+(defn solve
+  "Solves initial value problem for istates. The step size is
+  controlled automatically by means of Runge-Kutta interpolation
+  in order to keep the local error smaller than eps and the
+  interpolation process is stopped when the current time exceeds
+  tmax. The transformation of the state vector is observed by an
+  instance of Logger-object."
+  [istates tmax eps #^Logger loggerObject]
+  (loop [t 0  states istates  h 1.0]
+    (let [yn_hn (update states t h eps)
           updated_states (map (fn [a b] {:mass (:mass a) :state (:yn b)}) states yn_hn)
           h_rkf45 (apply max (map #(:hn %) yn_hn))
+          log_state_fn (fn [states] (log loggerObject states))
           [tn statesn] (if (> h h_rkf45)
                          (list t states)
                          (list (+ t h) (do (log_state_fn states) updated_states)))]
@@ -314,10 +256,33 @@
         (recur tn statesn (* 0.8 h_rkf45))
         ))))
 
+
+;
+; --- Usage Illustration ---
+;
+;initial conditions
+(def pos [[1 0 -2] [0 -1 -1] [-1 -1 1] [-2 0 0] [0 1 4]])
+(def vel (repeat (count pos) [0 0 0]))
+(def masses (vec (repeat (count pos) 1.0)))
+(def istates (gen_particle_states pos vel masses))
+
+; test
+; (def actio (nth istates 0))
+; (def reactio 
+;   (keep-indexed (fn [idx item] (if (not (= idx 0)) item)) istates)
+;   )
+
+; (defn rkf45 [f t y h eps params]
+
+; (defn mytest []
+;   ;(gravity_deqn  0.0 (:state actio) reactio)
+;   (rkf45 gravity_deqn 0.0 (:state actio) 300 1e-5 reactio)
+;   )
 ;(solve 10000 log)
 ;(solve 10000 log3)
 ;(def myLogger (create_logger istates 1e-7))
 
-(def LoggerObject (createLogger istates))
-(solve 10000 (fn [states] (log LoggerObject states)))
+
+; Invoke the solver
+(solve istates 10000 1e-5 @(def loggerObject (createLogger istates 1e-4)))
 
