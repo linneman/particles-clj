@@ -242,7 +242,7 @@
   interpolation process is stopped when the current time exceeds
   tmax. The transformation of the state vector is observed by an
   instance of Logger-object."
-  [istates tmax eps #^Logger loggerObject]
+  [istates tmax eps #^Log loggerObject]
   (loop [t 0  states istates  h 1.0]
     (let [yn_hn (update states t h eps)
           updated_states (map (fn [a b] {:mass (:mass a) :state (:yn b)}) states yn_hn)
