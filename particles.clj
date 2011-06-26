@@ -1,6 +1,8 @@
 ; particles
 ; particle dynamics by Runge-Kutta interpolation
 ;
+; differential equation solver
+;
 ; by Otto Linnemann
 ; (C) 2011, GNU General Public Licence
 
@@ -85,7 +87,7 @@
 
 ; particle data structure which provides state vector and
 ; constant characteristics e.g. its mass
-(defstruct particles :state :mass)
+(defstruct particles :state :mass :t)
 
 
 (defn gen_y_vectors
@@ -111,7 +113,7 @@
   masses."
   [pos vel masses]
   (let [y_vectors  (gen_y_vectors pos vel)]
-    (map #(struct particles (nth % 0) (nth % 1)) 
+    (map #(struct particles (nth % 0) (nth % 1) 0) 
          (partition 2 (interleave y_vectors masses)))))
 
 
@@ -201,12 +203,13 @@
   Log
   (log [this states] 
     (dosync (ref-set (:trajectories_ref this)
-      (map (fn [a b]
+      (doall (map (fn [a b]
              (let [curr_pos (vec (take 3 (:state a)))
+                   logged (vec (flatten [curr_pos (:t a)]))
                    last_pos (vec (last b))
                    max_dist (apply max (map abs (- last_pos curr_pos)))]
-               (if (> max_dist (:lim_dist this)) (conj b curr_pos) b)))
-           states (deref (:trajectories_ref this))))))
+               (if (> max_dist (:lim_dist this)) (conj b logged) b)))
+           states (deref (:trajectories_ref this)))))))
   )
 
 (defn createLogger
@@ -215,7 +218,7 @@
   vector and lim_dist provides the limit which must be crossed
   in one dimension for a new particles position for being logged." 
   [istates lim_dist]
-  (let [trajectories (map #(vector (vec (take 3 (:state %)))) istates)]
+  (let [trajectories (map #(vector (vec (flatten [(take 3 (:state %)) 0]))) istates)]
     (Logger. (ref trajectories) lim_dist)))
 
 
@@ -242,19 +245,21 @@
   interpolation process is stopped when the current time exceeds
   tmax. The transformation of the state vector is observed by an
   instance of Logger-object."
-  [istates tmax eps #^Log loggerObject]
-  (loop [t 0  states istates  h 1.0]
+  ([istates tmax #^Log loggerObject]     (solve istates tmax 1e-6 loggerObject))
+  ([istates tmax eps #^Log loggerObject] (solve istates tmax 1000000 eps loggerObject))
+  ([istates tmax maxstep eps #^Log loggerObject]
+  (loop [t 0  stepcnt 0  states istates  h 1.0]
     (let [yn_hn (update states t h eps)
-          updated_states (map (fn [a b] {:mass (:mass a) :state (:yn b)}) states yn_hn)
+          updated_states (map (fn [a b] {:mass (:mass a) :state (:yn b) :t t}) states yn_hn)
           h_rkf45 (apply max (map #(:hn %) yn_hn))
           log_state_fn (fn [states] (log loggerObject states))
-          [tn statesn] (if (> h h_rkf45)
-                         (list t states)
-                         (list (+ t h) (do (log_state_fn states) updated_states)))]
-      (if (> t tmax)
+          [tn stepcnt statesn] (if (> h h_rkf45)
+                         (vector t stepcnt states)
+                         (vector (+ t h) (inc stepcnt) (do (log_state_fn states) updated_states)))]
+      (if (or (>= t tmax) (>= stepcnt maxstep))
         t
-        (recur tn statesn (* 0.8 h_rkf45))
-        ))))
+        (recur tn stepcnt (doall statesn) (* 0.8 h_rkf45))
+        )))))
 
 
 ;
@@ -284,5 +289,5 @@
 
 
 ; Invoke the solver
-(solve istates 10000 1e-5 @(def loggerObject (createLogger istates 1e-4)))
+;(solve istates 10000 1e-5 @(def loggerObject (createLogger istates 1e-4)))
 
