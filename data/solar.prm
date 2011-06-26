@@ -1,0 +1,10 @@
+# Simulation Parameter File
+
+MAX_STEPS	:=	100000
+MAX_TIME 	:=	3.1536e+08
+MAX_LTIME   :=  9.4674e+09
+EPS_ABS		:=	1e-8
+EPS_REL		:=	1e-6
+H_MAX		:=  1e10
+
+GRAVITY_CONST := 6.672e-11

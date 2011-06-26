@@ -14,7 +14,8 @@
   (:require clojure.contrib.string)
   )
 
-(defn parse_initial_state "parse particles.ini file and generate initial state vector for solver"
+(defn parse_initial_state
+  "parse particles.ini file and generate initial state vector for solver"
   [filename]
   (let [ascii (slurp filename)
         lines (clojure.contrib.string/split-lines ascii)
@@ -35,14 +36,36 @@
       (gen_particle_states vpos vvel vmass))))
 
 
+(defn parse_params
+  "parse simulation parameter file"
+  [filename]
+  (let [ascii (slurp filename)
+        extparfn (fn [parname]
+                   (let [regexp (re-pattern
+                     (format "(%s)(\\s+:=\\s+)([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)" parname))]
+                     (Double/parseDouble (nth (re-find regexp ascii) 3))))
+        kvpair (fn [parname] {(keyword parname) (extparfn parname)})]
+    (particles/setG (extparfn "GRAVITY_CONST"))
+    (merge
+      (kvpair "GRAVITY_CONST")
+      (kvpair "MAX_STEPS")
+      (kvpair "MAX_TIME")
+      (kvpair "EPS_REL")
+      (kvpair "H_MAX")
+      )
+    ))
+
+
 (defn write_logger_object [obj filename]
+  "write simulation result from logger object obj to filename"
   (with-open [wtr (BufferedWriter. (FileWriter.	filename))]
     (.write wtr "plot \"-\", \"-\", \"-\"\n")
     (let [traj @(:trajectories_ref obj)]
       (dorun (map
                (fn [tj]  
                  (dorun 
-                   (map (fn [pos_t] (.write wtr (apply format "%e %e %e %e\n" (map #(double %) pos_t))))
+                   (map (fn [pos_t] (.write wtr (apply format "%e %e %e %e\n"
+                                                       (map #(double %) pos_t))))
                         tj)) (.write wtr "e\n") 
                  ) 
                traj)))))
@@ -52,6 +75,28 @@
 ;(write_logger_object loggerObject "test.trj")
 
 
+
+;
+; --- start the simulation ---
+;
+
+; load initial states
 (def solar_init_states (parse_initial_state "data/solar.ini"))
-(time (solve solar_init_states 3.1536e+08 50000 1e10 @(def loggerObject (createLogger solar_init_states 1e10))))
+
+; load simulation parameters
+(def params (parse_params "data/solar.prm"))
+
+; start solver
+(time
+  (solve
+    solar_init_states
+    (:MAX_TIME params)
+    (:MAX_STEPS params)
+    (:EPS_REL params)
+    @(def loggerObject (createLogger solar_init_states
+                                     (:H_MAX params))
+       )))
+
+; write results to output file
 (write_logger_object loggerObject "solar.trj")
+

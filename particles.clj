@@ -84,6 +84,7 @@
 
 ; gravity constant
 (def G 6.67429e-11)
+(defn setG [val] (def G val))
 
 ; particle data structure which provides state vector and
 ; constant characteristics e.g. its mass
@@ -185,7 +186,8 @@
               (* 0.5353313840155945 k4) (* -0.25 k5))
         zj (+ y (* 0.11851851851851852 k1) (* 0.5189863547758284 k3)
               (* 0.5061314903420167 k4) (* -0.18 k5) (* 0.03636363636363636 k6))
-        s (* 0.840896 (pow (/ (* eps h) (abs (- zj yj))) 0.25))
+        tol (* eps (abs y))
+        s (* 0.840896 (pow (/ (* tol h) (abs (- zj yj))) 0.25))
         ]
     {:yn zj :hn s} 
     )
