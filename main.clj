@@ -108,4 +108,4 @@
 
 ; write results to output file
 (write_logger_object loggerObject "solar.trj")
-
+(System/exit 0)
