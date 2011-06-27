@@ -42,11 +42,20 @@
   (let [ascii (slurp filename)
         extparfn (fn [parname]
                    (let [regexp (re-pattern
-                     (format "(%s)(\\s+:=\\s+)([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)" parname))]
-                     (Double/parseDouble (nth (re-find regexp ascii) 3))))
-        kvpair (fn [parname] {(keyword parname) (extparfn parname)})]
-    (particles/setG (extparfn "GRAVITY_CONST"))
+                     (format "(%s)(\\s+:=\\s+)([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)" parname))
+                      aval  (nth (re-find regexp ascii) 3)]
+                     (if aval (Double/parseDouble aval) nil)))
+        kvpair (fn [parname] (let [p (extparfn parname)] (if p {(keyword parname) p})))]
+    (let [G (extparfn "GRAVITY_CONST")]
+      (if G (particles/setG G)))
     (merge
+      ;default params
+      {:GRAVITY_CONST particles/G}
+      {:MAX_STEPS     1000}
+      {:MAX_TIME      1e6}
+      {:EPS_REL       1e-6}
+      {:H_MAX         1e10}
+      ;overwritten by specifications in parameter file
       (kvpair "GRAVITY_CONST")
       (kvpair "MAX_STEPS")
       (kvpair "MAX_TIME")
@@ -84,7 +93,7 @@
 (def solar_init_states (parse_initial_state "data/solar.ini"))
 
 ; load simulation parameters
-(def params (parse_params "data/solar.prm"))
+(def params (parse_params "data/test.prm"))
 
 ; start solver
 (time
