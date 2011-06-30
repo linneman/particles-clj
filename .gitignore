@@ -1,3 +1,7 @@
 .DS_Store
+classes/
+lib/
+*.jar
 *.trj
 *.swp
+

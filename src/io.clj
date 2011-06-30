@@ -1,12 +1,12 @@
 ; particles
 ; particle dynamics by Runge-Kutta interpolation
 ;
-; sample invocation
+; input/output of simulation data
 ;
 ; by Otto Linnemann
 ; (C) 2011, GNU General Public Licence
 
-(ns main
+(ns io
   (:refer-clojure)
   (:import (java.io BufferedWriter FileWriter))
   (:use [clojure.contrib.duck-streams :only (reader read-lines write-lines)])
@@ -68,9 +68,10 @@
 (defn write_logger_object [obj filename]
   "write simulation result from logger object obj to filename"
   (with-open [wtr (BufferedWriter. (FileWriter.	filename))]
-    (.write wtr "plot \"-\", \"-\", \"-\"\n")
     (let [traj @(:trajectories_ref obj)]
-      (dorun (map
+        (.write wtr (format "plot %s\"-\"\n" 
+            (apply str (repeat (- (count traj) 1) "\"-\","))))
+        (dorun (map
                (fn [tj]  
                  (dorun 
                    (map (fn [pos_t] (.write wtr (apply format "%e %e %e %e\n"
@@ -84,28 +85,34 @@
 ;(write_logger_object loggerObject "test.trj")
 
 
+; for usage illustration set flag to true
+(def start_example false)
 
 ;
-; --- start the simulation ---
+; --- usage illustration ---
 ;
+(if start_example
+  (do
+   ; load initial states
+   (def solar_init_states (parse_initial_state "data/solar.ini"))
 
-; load initial states
-(def solar_init_states (parse_initial_state "data/solar.ini"))
+   ; load simulation parameters
+   (def params (parse_params "data/solar.prm"))
 
-; load simulation parameters
-(def params (parse_params "data/test.prm"))
+   ; start solver
+   (time
+     (solve
+       solar_init_states
+       (:MAX_TIME params)
+       (:MAX_STEPS params)
+       (:EPS_REL params)
+       @(def -loggerObject (createLogger solar_init_states
+                                        (:H_MAX params))
+          )))
 
-; start solver
-(time
-  (solve
-    solar_init_states
-    (:MAX_TIME params)
-    (:MAX_STEPS params)
-    (:EPS_REL params)
-    @(def loggerObject (createLogger solar_init_states
-                                     (:H_MAX params))
-       )))
+   ; write results to output file
+   (write_logger_object -loggerObject "solar.trj")
+   ;(System/exit 0)
+   )
+)
 
-; write results to output file
-(write_logger_object loggerObject "solar.trj")
-(System/exit 0)

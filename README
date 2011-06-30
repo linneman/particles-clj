@@ -1,0 +1,60 @@
+Simulation of Particles Dynamics in Clojure
+===========================================
+
+Object
+------
+
+This command line application calculates  the trajectories of a set of
+material  points  (particles).  The intial  conditions  like  postion,
+velocity and masses as well  as fundamental simulation parameters like
+error bounds, number of steps, etc. have to be defined in advance. The
+program  will  then calculate  the  movement  of each  particle  using
+Runge-Kutta 4/5  order integration  with automatic step  size control.
+Due to the functional programming style the computational load will be
+distributed  over  the  available  CPU cores  which  can  dramatically
+increase processing speed in some cases.
+
+Build
+-----
+
+You need  the clojure build  tool leinignen for  compilation. Download
+the lein script file from Github
+
+```cd ~/bin
+wget http://github.com/technomancy/leiningen/raw/stable/bin/lein
+chmod +x lein```
+
+and type
+
+```lein self-install```
+
+The following commands will generate and stand-alone jar file:
+
+```lein compile
+lein uberjar```
+
+Refer also to
+http://zef.me/2470/building-clojure-projects-with-leiningen
+for more specific information about build options.
+
+
+Invocation
+----------
+
+The following  command will simulate  our solar system  planet trajec-
+tories:
+
+java -jar particles-0.1-standalone.jar data/solar.prm data/solar.ini \
+  data/solar.trj 
+
+
+Output File Format
+------------------
+
+The  trajectory file  itself comes  in GNU-plot  format. To  visualize
+start  GNU-plot  and  enter   the  command  <load  "trajectory-file">.
+Alternatively  dedicated trajectory  viewer application  are available
+for the Java plattform and Mac OS X.
+
+-------------------------
+June 2011, Otto Linnemann
