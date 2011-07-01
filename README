@@ -20,18 +20,18 @@ Build
 You need  the clojure build  tool leinignen for  compilation. Download
 the lein script file from Github
 
-```cd ~/bin
+cd ~/bin
 wget http://github.com/technomancy/leiningen/raw/stable/bin/lein
-chmod +x lein```
+chmod +x lein
 
 and type
 
-```lein self-install```
+lein self-install
 
 The following commands will generate and stand-alone jar file:
 
-```lein compile
-lein uberjar```
+lein compile
+lein uberjar
 
 Refer also to
 http://zef.me/2470/building-clojure-projects-with-leiningen
