@@ -6,6 +6,8 @@
 ; by Otto Linnemann
 ; (C) 2011, GNU General Public Licence
 
+(set! *warn-on-reflection* true)
+
 (ns particles
   (:refer-clojure :exclude [- + *])
   (:use [clojure.contrib.generic 
@@ -60,7 +62,7 @@
 
 (defmethod abs
   java.lang.Number
-  [x]
+  [^Double x]
   (Math/abs x))
 
 ; absolute value of vector

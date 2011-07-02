@@ -85,14 +85,12 @@
 ;(write_logger_object loggerObject "test.trj")
 
 
-; for usage illustration set flag to true
-(def start_example false)
 
 ;
 ; --- usage illustration ---
 ;
-(if start_example
-  (do
+; for usage illustration remove the comment
+#_(do
    ; load initial states
    (def solar_init_states (parse_initial_state "data/solar.ini"))
 
@@ -114,5 +112,4 @@
    (write_logger_object -loggerObject "solar.trj")
    ;(System/exit 0)
    )
-)
 
